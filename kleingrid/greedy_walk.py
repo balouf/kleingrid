@@ -1,5 +1,5 @@
 import numpy as np
-from numba import prange
+from numba import prange  # type: ignore
 
 
 def edt_gen(gen, n, p, q, n_runs):

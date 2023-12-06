@@ -1,7 +1,7 @@
 """Main module."""
 import time
 
-from numba import njit
+from numba import njit  # type: ignore
 from dataclasses import dataclass
 
 from kleingrid.shortcuts import draw_r_lt_1, draw_r_eq_1, draw_1_lt_r_lt_2, draw_r_eq_2, draw_2_lt_r
