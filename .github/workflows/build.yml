@@ -35,6 +35,8 @@ jobs:
 
       - name: Test with tox
         run: |
+          sudo apt update
+          sudo apt install llvm
           poetry install
           poetry update
           source .venv/bin/activate
