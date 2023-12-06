@@ -4,7 +4,6 @@
 
 import pytest
 
-from kleingrid import kleingrid
 
 @pytest.fixture
 def response():

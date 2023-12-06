@@ -1,7 +1,7 @@
 import numpy as np
 from numba import njit  # type: ignore
 
-from kleingrid.seed import set_seeds
+from kleingrid.python_implementation.seed import set_seeds
 
 
 @njit

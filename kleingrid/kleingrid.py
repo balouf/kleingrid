@@ -1,88 +1,150 @@
-"""Main module."""
+import inspect
 import time
+import numpy as np
 
-from numba import njit  # type: ignore
-from dataclasses import dataclass
+from joblib import Parallel, delayed  # type: ignore
+from tqdm import tqdm
+from functools import cache
 
-from kleingrid.shortcuts import draw_r_lt_1, draw_r_eq_1, draw_1_lt_r_lt_2, draw_r_eq_2, draw_2_lt_r
-from kleingrid.greedy_walk import edt_gen
-
-
-@dataclass
-class Result:
-    """
-    Dataclass to represent the results.
-    """
-    edt: float
-    process_time: float
-    n: int
-    r: float
-    p: int
-    q: int
-    n_runs: int
-    numba: bool
-    parallel: bool
+from kleingrid.python_implementation.python_edt import python_edt
+from kleingrid.julia_implementation.julia_edt import julia_edt
 
 
-def expected_delivery_time(n=1000, r=2, p=1, q=1, n_runs=10000, numba=True, parallel=False):
-    """
-
-    Parameters
-    ----------
-    n: :class:`int`, default=1000
-        Grid siDe
-    r: :class:`float`, default=2.0
-        Shortcut exponent
-    p: :class:`int`, default=1
-        Local range
-    q: :class:`int`, default=1
-        Number of shortcuts
-    n_runs: :class:`int`, default=10000
-        Number of routes to compute
-    numba: :class:`bool`, default=True
-        Use JiT compilation
-    parallel :class:`bool`, default=False
-        Parallelize runs. Use for single, lengthy computation, otherwise coarse-grained parallelisation is preferred.
-
-
-    Returns
-    -------
-    :class:`~kleingrid.kleingrid.EDT`
-
-    Examples
-    --------
-
-    >>> from kleingrid.seed import set_seeds
-    >>> set_seeds(42, 51)
-    >>> expected_delivery_time(n=1000, r=.5, n_runs=100, numba=False)  # doctest: +ELLIPSIS +NORMALIZE_WHITESPACE
-    Result(edt=85.93, process_time=..., n=1000, r=0.5, p=1, q=1, n_runs=100, numba=False, parallel=False)
-    >>> expected_delivery_time(n=1000, r=1, n_runs=100, numba=False)  # doctest: +ELLIPSIS +NORMALIZE_WHITESPACE
-    Result(edt=69.44, process_time=..., n=1000, r=1, p=1, q=1, n_runs=100, numba=False, parallel=False)
-    >>> expected_delivery_time(n=1000, r=1.5, n_runs=100, numba=False)  # doctest: +ELLIPSIS +NORMALIZE_WHITESPACE
-    Result(edt=55.8, process_time=..., n=1000, r=1.5, p=1, q=1, n_runs=100, numba=False, parallel=False)
-    >>> expected_delivery_time(n=1000, r=2, n_runs=100, numba=False)  # doctest: +ELLIPSIS +NORMALIZE_WHITESPACE
-    Result(edt=67.28, process_time=..., n=1000, r=2, p=1, q=1, n_runs=100, numba=False, parallel=False)
-    >>> expected_delivery_time(n=1000, r=2.5, n_runs=100, numba=False)  # doctest: +ELLIPSIS +NORMALIZE_WHITESPACE
-    Result(edt=167.85, process_time=..., n=1000, r=2.5, p=1, q=1, n_runs=100, numba=False, parallel=False)
-    >>> expected_delivery_time(n=10000000000, r=1.5, n_runs=10000, p=2, q=2, parallel=True)  # doctest: +SKIP
-    Result(edt=6823.2369, process_time=27.796875, n=10000000000, r=1.5, p=2, q=2, n_runs=10000, numba=True, parallel=True)
-    """
-    start = time.process_time()
-    if r < 1:
-        gen = draw_r_lt_1(n, r)
-    elif r == 1:
-        gen = draw_r_eq_1(n)
-    elif r < 2:
-        gen = draw_1_lt_r_lt_2(n, r)
-    elif r == 2:
-        gen = draw_r_eq_2(n)
+def compute_edt(n=1000, r=2, p=1, q=1, n_runs=10000, julia=True, numba=True, parallel=False):
+    if julia:
+        return julia_edt(n=n, r=r, p=p, q=q, n_runs=n_runs)
     else:
-        gen = draw_2_lt_r(n, r)
-    if numba:
-        gen = njit(gen)
-        main_loop = njit(edt_gen, parallel=parallel)
-    else:
-        main_loop = edt_gen
-    edt = main_loop(gen=gen, n=n, p=p, q=q, n_runs=n_runs)
-    return Result(edt=edt, process_time=time.process_time() - start,
-                  n=n, r=r, p=p, q=q, n_runs=n_runs, numba=numba, parallel=parallel)
+        return python_edt(n=n, r=r, p=p, q=q, n_runs=n_runs, numba=numba, parallel=parallel)
+
+
+def get_default_args(func):
+    signature = inspect.signature(func)
+    return {
+        k: v.default
+        for k, v in signature.parameters.items()
+        if v.default is not inspect.Parameter.empty
+    }
+
+
+def parallelize(values, function=None, default=None, n_jobs=-1):
+    if function is None:
+        function = compute_edt
+    if default is None:
+        default = get_default_args(function)
+
+    def with_key(v):
+        return function(**{**default, **v})
+
+    return Parallel(n_jobs=n_jobs)(tqdm((
+        delayed(with_key)(v) for v in values), total=len(values)))
+
+
+def simple_function(n=10000, n_runs=10000, **kwargs):
+    def f(r):
+        return compute_edt(r=r, n=n, n_runs=n_runs, **kwargs).edt
+    return cache(f)
+
+
+def get_target(f, a, b, t):
+    fa = f(a)
+    fb = f(b)
+    c = (a+b)/2
+    fc = f(c)
+    while fa < fc < fb:
+        if fc < t:
+            a, fa = c, fc
+        else:
+            b, fv = c, fc
+        c = (a+b)/2
+        print(c)
+        fc = f(c)
+    return c
+
+
+def gss(f, a, b, cmin, tol=1e-5):
+    """Golden-section search
+    to find the minimum of f on [a,b]
+    f: a strictly unimodal function on [a,b]
+
+    Example:
+    >>> f = cache(lambda x: (x-2)**2)
+    >>> x = gss(f, 1, 5, 50)
+    >>> f"{x:.4f}"
+    '2.0000'
+
+    """
+    gr = (np.sqrt(5) + 1) / 2
+
+    while abs(b - a) > tol:
+        c = b - (b - a) / gr
+        fc = f(c)
+        d = a + (b - a) / gr
+        fd = f(d)
+        # print(c, fc, d, fd, cmin)
+        # if (fd > cmin) and (fc > cmin):
+            # print(fc>cmin)
+            # print(fd > cmin)
+            # print("done")
+            # break
+        if fc < fd:
+            b = d
+            cmin = fc
+        else:
+            a = c
+            cmin = fd
+
+    return (b + a) / 2
+
+
+def get_bounds(n, offset_start=.1, n_runs=10000):
+    f = simple_function(n=n, n_runs=n_runs)
+    ff = simple_function(n=n, n_runs=100 * n_runs)
+    r = 2
+    ref = f(r)
+    r += offset_start
+    while f(r) < 2 * ref:
+        r += offset_start
+        print(r)
+    up2b = r
+
+    up2 = get_target(f, 2, up2b, 2 * ref)
+
+    r = 2 - offset_start
+    while (f(r) < ref) and r >= 0:
+        r -= offset_start
+        print(r)
+
+    loa = r
+
+    m = gss(f, loa, 2, ref)
+
+    if r < 0:
+        return r, r, m, up2
+
+    lo = get_target(f, m, loa, ref)
+
+    while (f(r) < 2 * ref) and r >= 0:
+        r -= offset_start
+        print(r)
+    lo2a = r
+
+    if lo2a < 0:
+        return lo2a, lo, m, up2
+
+    b = min(lo2a + offset_start, lo)
+
+    lo2 = get_target(f, b, lo2a, 2 * ref)
+
+    return lo2, lo, m, up2
+
+
+def estimate_alpha(r, p=15, budget=20):
+    start = time.time()
+    v1 = compute_edt(n=2**p, r=r)
+    v2 = compute_edt(n=2**(p+1), r=r)
+    while ((time.time() - start) < budget):
+        p += 1
+        v1 = v2
+        v2 = compute_edt(n=2**(p+1), r=r)
+        print(np.log2(v2.edt)-np.log2(v1.edt))
+    return np.log2(v2.edt)-np.log2(v1.edt), p+1
