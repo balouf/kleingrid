@@ -35,10 +35,11 @@ jobs:
 
       - name: Test with tox
         run: |
+          apt update
+          apt install llvm
           poetry install
           poetry update
           source .venv/bin/activate
-          apt intall llvm
           tox
 
       - name: Upload coverage reports to Codecov with GitHub Action on Python 3.12
