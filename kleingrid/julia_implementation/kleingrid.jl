@@ -4,6 +4,7 @@
 ### Seed
 
 using Random
+using BitIntegers
 
 function set_seed(seed)
     Random.seed!(seed)
@@ -59,7 +60,7 @@ end
 #   BigInt versions of other functions. It uses Julia expressions.
 
 function multitype(my_quoted_function, variable_list)
-    my_types = [:Int64, :Int128, :BigInt]
+    my_types = [:Int64, :Int128, :Int256, :Int512, :Int1024, :BigInt]
     function explore(exp, my_type)
         if isa(exp, Expr)
             if length(exp.args) > 0
@@ -413,11 +414,19 @@ end,
 #     •  Launch core algorithm
 
 function expected_delivery_time(n, r = 2, p = 1, q = 1, R = 10000, stats = true)
-    deux = Int128(2)
-    if n ≤ 2^61
+    t128 = Int128(2)
+    t256 = Int256(2)
+    if n ≤ 2^60
         n = Int64(n)
-    elseif n ≤ deux^125
+    elseif n ≤ Int128(2)^124
         n = Int128(n)
+    elseif n ≤ Int256(2)^252
+        n = Int256(n)
+        println("working on 256 bits")
+    elseif n ≤ Int512(2)^508
+        n = Int512(n)
+    elseif n ≤ Int1024(2)^1020
+        n = Int1024(n)
     else n = BigInt(n)
     end
     if r < 1
