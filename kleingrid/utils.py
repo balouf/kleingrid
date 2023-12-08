@@ -7,7 +7,7 @@ class Result:
     Dataclass to represent the results.
     """
     edt: float
-    computation_time: float
+    process_time: float
     n: int
     r: float
     p: int
