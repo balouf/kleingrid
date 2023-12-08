@@ -45,8 +45,8 @@ def julia_edt(n=1000, r=2, p=1, q=1, n_runs=10000):
     >>> julia_edt(n=10000000000, r=1.5, n_runs=10000, p=2, q=2)  # doctest: +SKIP
     Result(edt=6846.631, process_time=13.0, n=10000000000, r=1.5, p=2, q=2, n_runs=10000, julia=True)
     """
-    start = time.time()
+    start = time.process_time()
     edt = jl.expected_delivery_time(n, r, p, q, n_runs)
-    return Result(edt=edt, process_time=time.time() - start,
+    return Result(edt=edt, process_time=time.process_time() - start,
                   n=n, r=r, p=p, q=q, n_runs=n_runs, julia=True)
 

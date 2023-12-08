@@ -53,7 +53,7 @@ def python_edt(n=1000, r=2, p=1, q=1, n_runs=10000, numba=True, parallel=False):
     >>> python_edt(n=10000000000, r=1.5, n_runs=10000, p=2, q=2, parallel=True)  # doctest: +SKIP
     Result(edt=6823.2369, process_time=27.796875, n=10000000000, r=1.5, p=2, q=2, n_runs=10000, numba=True, parallel=True)
     """
-    start = time.time()
+    start = time.process_time()
     if r < 1:
         gen = draw_r_lt_1(n, r)
     elif r == 1:
@@ -70,5 +70,5 @@ def python_edt(n=1000, r=2, p=1, q=1, n_runs=10000, numba=True, parallel=False):
     else:
         main_loop = edt_gen
     edt = main_loop(gen=gen, n=n, p=p, q=q, n_runs=n_runs)
-    return Result(edt=edt, process_time=time.time() - start,
+    return Result(edt=edt, process_time=time.process_time() - start,
                   n=n, r=r, p=p, q=q, n_runs=n_runs, julia=False, numba=numba, parallel=parallel)

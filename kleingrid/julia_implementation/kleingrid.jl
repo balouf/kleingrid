@@ -422,7 +422,6 @@ function expected_delivery_time(n, r = 2, p = 1, q = 1, R = 10000, stats = true)
         n = Int128(n)
     elseif n ≤ Int256(2)^252
         n = Int256(n)
-        println("working on 256 bits")
     elseif n ≤ Int512(2)^508
         n = Int512(n)
     elseif n ≤ Int1024(2)^1020
